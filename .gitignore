@@ -1,0 +1,6 @@
+sdkconfig
+build
+.vscode
+.devcontainer
+*.pem
+dependencies.lock
