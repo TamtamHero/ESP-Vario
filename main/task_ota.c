@@ -5,7 +5,7 @@
 
 #include "freertos/event_groups.h"
 
-#define TAG "vario"
+#define TAG "ota"
 
 #define WIFI_AUTHMODE WIFI_AUTH_WPA2_PSK
 
@@ -227,6 +227,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 
 void task_ota(void *pvParameter)
 {
+    // this task should be resumed from outside
+    vTaskSuspend(NULL);
+
     ESP_ERROR_CHECK(wifi_init());
 
     esp_err_t ret;

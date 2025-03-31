@@ -2,7 +2,7 @@ menu "App Configuration"
 
     config FIRMWARE_OTA_UPGRADE_URL
         string "firmware upgrade url endpoint"
-        default "http://192.168.0.16:8070/vario2.bin"
+        default "http://192.168.0.16:8070/vario.bin"
         help
             URL of server which hosts the firmware
             image.
