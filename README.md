@@ -1,4 +1,4 @@
-# Open Vario Lite
+# ESP-Vario
 
 
 ## Configuration
@@ -14,3 +14,4 @@ Build and flash app with `idf.py -p PORT -b 115200 flash monitor`
 ## OTA update
 
 Run an HTTP(S) server in the `./build` directory before triggering OTA update.
+For instance: `python -m http.server 8070 --directory ./build`
