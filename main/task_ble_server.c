@@ -1,5 +1,3 @@
-#include "nimble/nimble_port_freertos.h"
-
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
@@ -66,6 +64,7 @@ void ble_server_host_task(void *param) {
 }
 
 esp_err_t ble_server_init(void) {
+    esp_log_level_set("NimBLE", ESP_LOG_WARN);
     ESP_ERROR_CHECK(nimble_port_init());
 
     // Initialize the NimBLE host
