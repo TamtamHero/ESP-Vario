@@ -15,3 +15,7 @@ Build and flash app with `idf.py -p PORT -b 115200 flash monitor`
 
 Run an HTTP(S) server in the `./build` directory before triggering OTA update.
 For instance: `python -m http.server 8070 --directory ./build`
+
+## Power usage
+
+When BLE is enabled, total device current is about 53mA. Coupled with a 400mAh battery, the autonomy should be about 7h30.
