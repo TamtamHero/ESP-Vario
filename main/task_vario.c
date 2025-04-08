@@ -25,13 +25,15 @@
 
 #define ESP_INTR_FLAG_DEFAULT 0
 
+#define BARO_COUNTING 20
+
 i2c_master_bus_handle_t bus_handle;
 bmx280_t* bmx280;
 
 volatile int mpu6050_DRDY_counter;
 volatile bool mpu6050_DRDY;
 volatile int SleepCounter;
-volatile int BaroCounter;
+volatile int baro_cnt;
 volatile int SleepTimeoutSecs;
 volatile int Ticks;
 
@@ -138,7 +140,7 @@ esp_err_t init_vario(){
 
     time_init();
 	KfTimeDeltaUSecs = 0.0f;
-	BaroCounter = 0;
+	baro_cnt = 0;
 	SleepTimeoutSecs = 0;
     Ticks = 0;
 	ringbuf_init();
@@ -161,9 +163,10 @@ void task_vario(void *pvParameter)
     int32_t audioCps = 0; // filtered climbrate, rounded to nearest cm/s
 
     ESP_LOGI(TAG, "%fV", battery_voltage);
-
+    uint32_t cnt = 0;
     while(1){
         if(mpu6050_DRDY){
+            cnt++;
             mpu6050_DRDY = false;
             time_update();
 
@@ -191,14 +194,14 @@ void task_vario(void *pvParameter)
             float gCompensatedAccel = imu_gravity_compensated_accel(axned, ayned, azned, Q0, Q1, Q2, Q3);
             ringbuf_add_sample(gCompensatedAccel);
 
-            BaroCounter++;
+            baro_cnt++;
             KfTimeDeltaUSecs += ImuTimeDeltaUSecs;
 
-            if (BaroCounter >= 22) {
-                BaroCounter = 0;
-                // average earth-z acceleration over the 30mS interval between z samples
+            if (baro_cnt >= BARO_COUNTING) {
+                baro_cnt = 0;
+                // average earth-z acceleration over the 38mS interval between z samples
                 // is used in the kf algorithm update phase
-                float zAccelAverage = ringbuf_average_newest_samples(22);
+                float zAccelAverage = ringbuf_average_newest_samples(BARO_COUNTING);
                 float dtKF = KfTimeDeltaUSecs/1000000.0f;
                 kalmanFilter4_predict(dtKF);
 
