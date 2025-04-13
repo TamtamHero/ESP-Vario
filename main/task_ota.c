@@ -272,11 +272,13 @@ void task_ota(void *pvParameter)
             .url = CONFIG_FIRMWARE_OTA_UPGRADE_URL,
             .cert_pem = (char *)server_cert_pem_start,
             .event_handler = _http_event_handler,
-            .keep_alive_enable = true
+            .keep_alive_enable = true,
+            .buffer_size = 2048
         };
 
         esp_https_ota_config_t ota_config = {
             .http_config = &config,
+            .bulk_flash_erase = true
         };
 
         while (1) {
