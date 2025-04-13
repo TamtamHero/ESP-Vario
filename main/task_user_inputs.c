@@ -28,6 +28,7 @@ void task_user_inputs(void *pvParameter)
 {
     TaskHandle_t *tasks = (TaskHandle_t *)pvParameter;
     ESP_LOGI(TAG, "Task begins...");
+    delegate = false;
     adc_init(SENSE_VBAT_CHAN);
 
     task_user_input_queue = xQueueCreate(1, sizeof(btn_state_t));
@@ -81,10 +82,5 @@ void task_user_inputs(void *pvParameter)
         }
         vTaskDelay(100/portTICK_PERIOD_MS);
     }
-
-
-    gpio_set_level(pinLED_G, LED_ON);
-    // vTaskResume(tasks[TASK_OTA]);
-
     vTaskDelete(NULL);
 }
