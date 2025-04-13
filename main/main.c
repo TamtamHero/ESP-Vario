@@ -33,7 +33,10 @@ void app_main(void)
     gpio_set_level(pinLED_G, LED_OFF);
     gpio_set_level(pinLED_B, LED_OFF);
 
-    vTaskDelay(1000/portTICK_PERIOD_MS);
+    vTaskDelay(100/portTICK_PERIOD_MS);
+
+    // Attempt continuation of deep sleep if device just woke up from it
+    deep_sleep(false);
 
     // Initialize NVS.
     nvd_init();

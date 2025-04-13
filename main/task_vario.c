@@ -1,6 +1,7 @@
 #include "task_vario.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
+#include "esp_sleep.h"
 
 #include "driver/gpio.h"
 #include "driver/ledc.h"
@@ -152,6 +153,20 @@ esp_err_t init_vario(){
     return ESP_OK;
 }
 
+/* If force_deep_sleep is true, deactivate sensors and trigger deep sleep
+If called after device woke up from deep sleep, trigger deep sleep again */
+void deep_sleep(bool force_deep_sleep){
+    if(force_deep_sleep || esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER){
+        if(force_deep_sleep){
+            mpu6050_sleep();
+            bmx280_reset(bmx280);
+        }
+        ESP_LOGI(TAG, "Enabling timer wakeup, %ds\n", SLEEP_PERIOD);
+        ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(SLEEP_PERIOD * 1000000));
+        esp_deep_sleep_start();
+    }
+}
+
 void task_vario(void *pvParameter)
 {
     ESP_LOGI(TAG, "Task begins...");
@@ -199,7 +214,7 @@ void task_vario(void *pvParameter)
 
             if (baro_cnt >= BARO_COUNTING) {
                 baro_cnt = 0;
-                // average earth-z acceleration over the 38mS interval between z samples
+                // average earth-z acceleration over the 40mS interval between BARO_COUNTING samples (baro supposedly takes 38ms to make a new measurement)
                 // is used in the kf algorithm update phase
                 float zAccelAverage = ringbuf_average_newest_samples(BARO_COUNTING);
                 float dtKF = KfTimeDeltaUSecs/1000000.0f;
@@ -221,7 +236,7 @@ void task_vario(void *pvParameter)
                 else if (SleepTimeoutSecs >= (Nvd.par.cfg.misc.sleepTimeoutMinutes*10*60)) {
                     ESP_LOGI(TAG, "Timed out with no significant climb/sink, put mpu6050 and ESP to sleep to minimize current draw");
                     ui_indicate_sleep();
-                    ui_go_to_sleep();
+                    deep_sleep(true);
                     SleepTimeoutSecs = 0;
                 }
             }

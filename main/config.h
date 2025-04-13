@@ -30,7 +30,7 @@
 #define VARIO_CLIMB_THRESHOLD_CPS_MIN   	20
 #define VARIO_CLIMB_THRESHOLD_CPS_MAX   	100
 
-#define VARIO_ZERO_THRESHOLD_CPS_DEFAULT  	5
+#define VARIO_ZERO_THRESHOLD_CPS_DEFAULT  	10
 #define VARIO_ZERO_THRESHOLD_CPS_MIN    	-20
 #define VARIO_ZERO_THRESHOLD_CPS_MAX    	20
 
@@ -42,7 +42,7 @@
 // frequency bandwidth to climbrates below this crossover threshold
 // so you have more frequency discrimination. So set the crossover threshold
 // to the average thermal core climbrate you expect for the site and conditions.
-#define VARIO_CROSSOVER_CPS_DEFAULT     400
+#define VARIO_CROSSOVER_CPS_DEFAULT     300
 #define VARIO_CROSSOVER_CPS_MIN         300
 #define VARIO_CROSSOVER_CPS_MAX         800
 
@@ -62,6 +62,10 @@
 #define SLEEP_TIMEOUT_MINUTES_DEFAULT   15
 #define SLEEP_TIMEOUT_MINUTES_MIN       5
 #define SLEEP_TIMEOUT_MINUTES_MAX       30
+
+// Sleep period in seconds when device is in sleep mode.
+// After each period, the device wakes up, blinks a LED and goes back to sleep for another period
+#define SLEEP_PERIOD 10
 
 // audio feedback tones
 #define BATTERY_TONE_HZ       400
