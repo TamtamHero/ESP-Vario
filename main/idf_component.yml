@@ -6,3 +6,6 @@ dependencies:
 
   esp-idf-bmx280:
     path: ../components/esp-idf-bmx280
+
+  net-logging:
+    path: ../components/esp-idf-net-logging/components/net-logging

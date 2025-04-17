@@ -13,4 +13,7 @@
 
 #include "freertos/FreeRTOS.h"
 
-void task_ota(void *pvParameter);
+esp_err_t set_wifi(bool enable);
+bool is_wifi_enabled();
+
+extern esp_netif_t *wifi_netif;

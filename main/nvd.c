@@ -2,7 +2,6 @@
 
 #include "string.h"
 
-#include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -23,7 +22,6 @@ NVD_t Nvd;
 
 static uint16_t crc16(uint16_t crcValue, uint8_t newByte);
 static uint16_t nvd_checksum(void);
-static esp_err_t nvd_commit(void);
 
 static uint16_t crc16(uint16_t crcValue, uint8_t newByte) {
     for (int bitIndex = 0; bitIndex < 8; bitIndex++) {
@@ -145,7 +143,7 @@ void nvd_set_defaults() {
     Nvd.par.cfg.misc.sleepTimeoutMinutes = SLEEP_TIMEOUT_MINUTES_DEFAULT;
 }
 
-static esp_err_t nvd_commit(void) {
+esp_err_t nvd_commit(void) {
     nvs_handle_t nvs_handle;
     esp_err_t err;
 

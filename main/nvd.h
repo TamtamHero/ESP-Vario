@@ -1,6 +1,8 @@
 #pragma once
 
 #include "stdint.h"
+#include "esp_system.h"
+
 #include "config.h"
 
 #define NVD_SIZE_BYTES 90
@@ -59,5 +61,6 @@ void nvd_init(void);
 void nvd_set_defaults();
 void nvd_save_calib_params(CALIB_PARAMS_t *calib);
 void nvd_save_config_params(CONFIG_PARAMS_t *cfg);
+esp_err_t nvd_commit(void);
 
 

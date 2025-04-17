@@ -33,7 +33,6 @@ bmx280_t* bmx280;
 
 volatile int mpu6050_DRDY_counter;
 volatile bool mpu6050_DRDY;
-volatile int SleepCounter;
 volatile int baro_cnt;
 volatile int SleepTimeoutSecs;
 volatile int Ticks;
@@ -145,7 +144,6 @@ esp_err_t init_vario(){
 	SleepTimeoutSecs = 0;
     Ticks = 0;
 	ringbuf_init();
-	SleepCounter = 0;
 
     // init BLE server
     ESP_ERROR_CHECK_WITHOUT_ABORT(ble_server_init());
@@ -234,7 +232,7 @@ void task_vario(void *pvParameter)
                     SleepTimeoutSecs = 0;
                 }
                 else if (SleepTimeoutSecs >= (Nvd.par.cfg.misc.sleepTimeoutMinutes*10*60)) {
-                    ESP_LOGI(TAG, "Timed out with no significant climb/sink, put mpu6050 and ESP to sleep to minimize current draw");
+                    ESP_LOGI(TAG, "Timed out with no significant climb/sink, put mpu6050 and ESP to sleep to minimize current draw after %ds", SleepTimeoutSecs/10);
                     ui_indicate_sleep();
                     deep_sleep(true);
                     SleepTimeoutSecs = 0;
@@ -248,6 +246,9 @@ void task_vario(void *pvParameter)
                 ble_transmit_LK8EX1(KfPressure_Pa, audioCps, battery_voltage);
                 // ESP_LOGD(TAG, "%fm %ld cps %fV", KfAltitudeCm/100.0, audioCps, battery_voltage);
                 SleepTimeoutSecs++;
+                if(SleepTimeoutSecs%10 == 0){
+                    ESP_LOGI(TAG, "+%d", SleepTimeoutSecs/100);
+                }
                 Ticks++;
 
                 // update battery voltage once per minute

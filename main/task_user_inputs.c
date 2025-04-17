@@ -1,12 +1,18 @@
 #include "task_user_inputs.h"
 #include "task_buzzer.h"
+#include "task_ota.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
 
+#include "net_logging.h"
+
 #include "driver/gpio.h"
 
+#include "nvd.h"
 #include "config.h"
 #include "adc.h"
+#include "leds.h"
+#include "wifi.h"
 
 #define TAG "inputs"
 
@@ -14,8 +20,16 @@
 #define BTN_LONGPRESS_TIME 1000000
 #define BTN_DOWN (voltage < BTN_VOLTAGE_HIGH)
 
+typedef enum{
+    STATE_VARIO = 0,
+    STATE_VARIO_WITH_UDP_LOGGING,
+    STATE_OTA,
+    STATE_WIPE_NVRAM,
+    STATE_MAX
+} ui_state_t;
+
 int64_t btn_pushdown_time = 0;
-uint32_t led_state = LED_OFF;
+ui_state_t ui_state = STATE_VARIO;
 bool delegate;
 
 QueueHandle_t task_user_input_queue;
@@ -57,19 +71,48 @@ void task_user_inputs(void *pvParameter)
                     btn_state_t msg = BTN_PRESS;
                     xQueueSend(task_user_input_queue, &msg, 0);
                 }
-                // otherwise, switch between OTA/Vario mode
                 else{
-                    led_state = !led_state;
-                    gpio_set_level(pinLED_G, led_state);
-                    if(led_state == LED_ON){
-                        tone(800, 100);
-                        vTaskResume(tasks[TASK_OTA]);
-                        vTaskSuspend(tasks[TASK_VARIO]);
-                    }
-                    else{
+                    ui_state = (ui_state + 1) % STATE_MAX;
+                    ESP_LOGI(TAG, "new state: %d", ui_state);
+                    switch (ui_state)
+                    {
+                    case STATE_VARIO:
+                        set_led_rgb(5, 0, 0);
                         tone(200, 100);
-                        vTaskSuspend(tasks[TASK_OTA]);
+                        vTaskDelete(tasks[TASK_OTA]);
+                        set_wifi(false);
                         vTaskResume(tasks[TASK_VARIO]);
+                        break;
+
+                    case STATE_VARIO_WITH_UDP_LOGGING:
+                        set_led_rgb(0, 5, 0);
+                        tone(200, 100);
+                        set_wifi(true);
+                        ESP_ERROR_CHECK_WITHOUT_ABORT(udp_logging_init("255.255.255.255", 6789, 1));
+                        break;
+
+                    case STATE_OTA:
+                        set_led_rgb(0, 0, 5);
+                        tone(200, 100);
+                        vTaskSuspend(tasks[TASK_VARIO]);
+                        esp_log_set_vprintf(vprintf);
+                        if(xTaskCreate(&task_ota, "task_ota", 8192, NULL, 0, &tasks[TASK_OTA]) != pdPASS){
+                            ESP_LOGI(TAG, "Failed starting ota task, resetting...");
+                            abort();
+                        }
+                        break;
+
+                    case STATE_WIPE_NVRAM:
+                        set_led_rgb(5, 0, 5);
+                        tone(200, 100);
+                        nvd_set_defaults();
+                        ESP_ERROR_CHECK(nvd_commit());
+                        vTaskDelay(pdMS_TO_TICKS(1000));
+                        abort();
+                        break;
+
+                    default:
+                        break;
                     }
                 }
             }
@@ -80,7 +123,7 @@ void task_user_inputs(void *pvParameter)
                 btn_pushdown_time = esp_timer_get_time();
             }
         }
-        vTaskDelay(100/portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     vTaskDelete(NULL);
 }
