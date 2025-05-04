@@ -43,13 +43,12 @@ esp_err_t _http_ota_event_handler(esp_http_client_event_t *evt)
 }
 
 void task_ota(void *pvParameter){
-    ESP_LOGI(TAG, "IN1");
+    // TODO: we mark current partition as valid if we are able to reach STATE_OTA but we could probably do cleaner
+    esp_ota_mark_app_valid_cancel_rollback();
     while(1){
-        ESP_LOGI(TAG, "IN");
         if(!is_wifi_enabled()){
             ESP_ERROR_CHECK(set_wifi(true));
         }
-        ESP_LOGI(TAG, "IN2");
 
         struct ifreq ifr;
         esp_netif_get_netif_impl_name(wifi_netif, ifr.ifr_name);
