@@ -206,7 +206,6 @@ int mpu6050_calibrate_gyro(CALIB_PARAMS_t* calib) {
                 (ABS(gy) > GYRO_OFFSET_LIMIT_1000DPS) ||
                 (ABS(gz) > GYRO_OFFSET_LIMIT_1000DPS)) {
                 foundBadData = 1;
-                tone(200, 300);
                 break;
             }
 

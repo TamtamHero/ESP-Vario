@@ -4,6 +4,7 @@
 #include "esp_system.h"
 
 #include "config.h"
+#include "vario_audio.h"
 
 #define NVD_SIZE_BYTES 90
 
@@ -21,16 +22,24 @@ typedef struct {
 	int16_t  gzBias;
 	} CALIB_PARAMS_t;
 
-typedef struct {
-	int16_t  climbThresholdCps;
-	int16_t  zeroThresholdCps;
-	int16_t  sinkThresholdCps;
-	int16_t  crossoverCps;
-	} VARIO_PARAMS_t;
+typedef union {
+    struct {
+        sound_profile_point_t  offscale_low;
+        sound_profile_point_t  sink_threshold;
+        sound_profile_point_t  glide_threshold;
+        sound_profile_point_t  glide_ceiling;
+        sound_profile_point_t  zeroing_threshold;
+        sound_profile_point_t  zeroing_ceiling;
+        sound_profile_point_t  climb_threshold;
+        sound_profile_point_t  fast_climb_threshold;
+        sound_profile_point_t  offscale_high;
+    };
+    sound_profile_point_t points[NUM_SOUND_PROFILE_POINTS];
+} VARIO_PARAMS_t;
 
 typedef struct  {
 	int16_t  accelVariance; // environmental acceleration disturbance variance, divided by 1000
-	int16_t  zMeasVariance; // z measurement noise variance
+	int16_t  kAdapt; // z measurement noise variance
 	} KALMAN_FILTER_PARAMS_t;
 
 typedef struct  {

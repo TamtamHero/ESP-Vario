@@ -51,9 +51,9 @@
 #define KF_ACCEL_VARIANCE_MIN         50
 #define KF_ACCEL_VARIANCE_MAX         150
 
-#define KF_ZMEAS_VARIANCE_DEFAULT    100
-#define KF_ZMEAS_VARIANCE_MIN        100
-#define KF_ZMEAS_VARIANCE_MAX        400
+#define KF_ADAPT_DEFAULT	100
+#define KF_ADAPT_MIN		50
+#define KF_ADAPT_MAX		150
 
 // Sleep timeout. The vario will go into sleep mode
 // if it does not detect climb or sink rates more than
@@ -79,18 +79,28 @@
 #define VARIO_SPKR_MIN_FREQHZ      	200
 #define VARIO_SPKR_MAX_FREQHZ       3200
 
-// three octaves (2:1) of frequency for climbrates below crossoverCps,
-// and one octave of frequency for climbrates above crossoverCps.
+// three octaves (2:1) of frequency for climbrates below fastClimbThresholdCps,
+// and one octave of frequency for climbrates above fastClimbThresholdCps.
 // This gives you more perceived frequency discrimination for climbrates
-// below crossoverCps
+// below fastClimbThresholdCps
 #define VARIO_CROSSOVER_FREQHZ    	1600
+
+// altitude noise variance can be measured offline by calculating the
+// statistical variance in cm^2 of altitude samples from
+// the baro sensor at rest
+#define KF_Z_MEAS_VARIANCE            150
 
 // This is set low as the residual acceleration bias after calibration
 // is expected to have little variation/drift
 #define KF_ACCELBIAS_VARIANCE   0.005f
 
 // KF4 Acceleration Update variance default
-#define KF_ACCEL_UPDATE_VARIANCE   50.0f
+#define KF_A_MEAS_VARIANCE   50.0f
+
+// injects additional uncertainty depending on magnitude of acceleration
+// helps respond quickly to large accelerations while heavily filtering
+// in low acceleration situations.  Range : 0.5 - 1.5
+#define KF_ADAPT			1.0f
 
 // any climb/sinkrate excursions beyond this level will keep the
 // vario active. If it stays below this level for the configured

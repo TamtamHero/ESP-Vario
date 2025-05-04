@@ -7,7 +7,7 @@
 
 #define TAG "ui"
 
-#define FORCE_CALIB_ACC_DELAY 15
+#define FORCE_CALIB_ACC_DELAY 5
 
 // !! Accelerometer calibration is REQUIRED for normal vario operation. !!
 // If flash was completely erased, or MPU6050 calibration data in flash was never initialized, or
@@ -45,11 +45,40 @@ void ui_indicate_battery_voltage() {
    else  numBeeps = 1;
 
    while (numBeeps--) {
-        tone(BATTERY_TONE_HZ, 300);
-        silence(300);
-        vTaskDelay(pdMS_TO_TICKS(600));
+        tone(BATTERY_TONE_HZ, 100);
+        silence(50);
+        vTaskDelay(pdMS_TO_TICKS(150));
     }
 }
+
+void ui_indicate_takeoff() {
+    // mario mushroom power-up tune
+    tone(523, 35);
+    tone(392, 35);
+    tone(523, 35);
+    tone(659, 35);
+    tone(784, 35);
+    tone(1047, 35);
+    tone(784, 35);
+    tone(415, 35);
+    tone(523, 35);
+    tone(622, 35);
+    tone(831, 35);
+    tone(622, 35);
+    tone(831, 35);
+    tone(1046, 35);
+    tone(1244, 35);
+    tone(1661, 35);
+    tone(1244, 35);
+    tone(466, 35);
+    tone(587, 35);
+    tone(698, 35);
+    tone(932, 35);
+    tone(1195, 35);
+    tone(1397, 35);
+    tone(1865, 35);
+    tone(1397, 35);
+ }
 
 void ui_calibrate_accel(CALIB_PARAMS_t *calib) {
     ESP_LOGD(TAG, "-- Accelerometer calibration --");
@@ -77,7 +106,7 @@ void ui_calibrate_gyro(CALIB_PARAMS_t *calib) {
   // use the last saved gyro biases. Otherwise, save the new gyro biases to flash memory
   if (mpu6050_calibrate_gyro(calib)) {
     ESP_LOGD(TAG, "Gyro calibration OK");
-    tone(CALIBRATING_TONE_HZ, 1000);
+    tone(CALIBRATING_TONE_HZ, 100);
     nvd_save_calib_params(calib);
     }
   else {

@@ -100,14 +100,14 @@ void nvd_init(void) {
         ESP_LOGD(TAG, "gzBias = %d\n", Nvd.par.calib.gzBias);
 
         ESP_LOGD(TAG, "VARIO\n");
-        ESP_LOGD(TAG, "climbThresholdCps = %d\n", Nvd.par.cfg.vario.climbThresholdCps);
-        ESP_LOGD(TAG, "zeroThresholdCps = %d\n", Nvd.par.cfg.vario.zeroThresholdCps);
-        ESP_LOGD(TAG, "sinkThresholdCps = %d\n", Nvd.par.cfg.vario.sinkThresholdCps);
-        ESP_LOGD(TAG, "crossoverCps = %d\n", Nvd.par.cfg.vario.crossoverCps);
+        ESP_LOGD(TAG, "climbThresholdCps = %d\n", Nvd.par.cfg.vario.climb_threshold.cps);
+        ESP_LOGD(TAG, "zeroThresholdCps = %d\n", Nvd.par.cfg.vario.zeroing_threshold.cps);
+        ESP_LOGD(TAG, "sinkThresholdCps = %d\n", Nvd.par.cfg.vario.sink_threshold.cps);
+        ESP_LOGD(TAG, "fastClimbThresholdCps = %d\n", Nvd.par.cfg.vario.fast_climb_threshold.cps);
 
         ESP_LOGD(TAG, "KALMAN FILTER\n");
         ESP_LOGD(TAG, "accelVariance = %d\n", Nvd.par.cfg.kf.accelVariance);
-        ESP_LOGD(TAG, "zMeasVariance = %d\n", Nvd.par.cfg.kf.zMeasVariance);
+        ESP_LOGD(TAG, "kAdapt = %d\n", Nvd.par.cfg.kf.kAdapt);
 
         ESP_LOGD(TAG, "MISCELLANEOUS\n");
         ESP_LOGD(TAG, "sleepTimeoutMinutes = %d\n", Nvd.par.cfg.misc.sleepTimeoutMinutes);
@@ -132,13 +132,28 @@ void nvd_set_defaults() {
     Nvd.par.calib.gyBias = 0;
     Nvd.par.calib.gzBias = 0;
 
-    Nvd.par.cfg.vario.climbThresholdCps = VARIO_CLIMB_THRESHOLD_CPS_DEFAULT;
-    Nvd.par.cfg.vario.zeroThresholdCps = VARIO_ZERO_THRESHOLD_CPS_DEFAULT;
-    Nvd.par.cfg.vario.sinkThresholdCps = VARIO_SINK_THRESHOLD_CPS_DEFAULT;
-    Nvd.par.cfg.vario.crossoverCps = VARIO_CROSSOVER_CPS_DEFAULT;
+    sound_profile_point_t offscale_low =         {.cps = -1000, .frequency = 200, .length = 1000, .duty = 100};
+    sound_profile_point_t sink_threshold =       {.cps = -250, .frequency = 300, .length = 1000, .duty = 100};
+    sound_profile_point_t glide_threshold =      {.cps = -250, .frequency = 0, .length = 300, .duty = 0};
+    sound_profile_point_t glide_ceiling =        {.cps = -30, .frequency = 0, .length = 300, .duty = 0};
+    sound_profile_point_t zeroing_threshold =    {.cps = -30, .frequency = 300, .length = 1200, .duty = 10};
+    sound_profile_point_t zeroing_ceiling =      {.cps = 30, .frequency = 350, .length = 1200, .duty = 10};
+    sound_profile_point_t climb_threshold =      {.cps = 30, .frequency = 350, .length = 600, .duty = 50};
+    sound_profile_point_t fast_climb_threshold = {.cps = 300, .frequency = 1000, .length = 400, .duty = 50};
+    sound_profile_point_t offscale_high =        {.cps = 1000, .frequency = 1800, .length = 160, .duty = 50};
+
+    Nvd.par.cfg.vario.offscale_low = offscale_low;
+    Nvd.par.cfg.vario.sink_threshold = sink_threshold;
+    Nvd.par.cfg.vario.glide_threshold = glide_threshold;
+    Nvd.par.cfg.vario.glide_ceiling = glide_ceiling;
+    Nvd.par.cfg.vario.zeroing_threshold = zeroing_threshold;
+    Nvd.par.cfg.vario.zeroing_ceiling = zeroing_ceiling;
+    Nvd.par.cfg.vario.climb_threshold = climb_threshold;
+    Nvd.par.cfg.vario.fast_climb_threshold = fast_climb_threshold;
+    Nvd.par.cfg.vario.offscale_high = offscale_high;
 
     Nvd.par.cfg.kf.accelVariance = KF_ACCEL_VARIANCE_DEFAULT;
-    Nvd.par.cfg.kf.zMeasVariance = KF_ZMEAS_VARIANCE_DEFAULT;
+    Nvd.par.cfg.kf.kAdapt = KF_ADAPT_DEFAULT;
 
     Nvd.par.cfg.misc.sleepTimeoutMinutes = SLEEP_TIMEOUT_MINUTES_DEFAULT;
 }

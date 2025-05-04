@@ -9,9 +9,11 @@
 #include "driver/gpio.h"
 
 #include "nvd.h"
+#include "state.h"
 #include "config.h"
 #include "adc.h"
 #include "leds.h"
+#include "ui.h"
 #include "wifi.h"
 
 #define TAG "inputs"
@@ -20,16 +22,7 @@
 #define BTN_LONGPRESS_TIME 1000000
 #define BTN_DOWN (voltage < BTN_VOLTAGE_HIGH)
 
-typedef enum{
-    STATE_VARIO = 0,
-    STATE_VARIO_WITH_UDP_LOGGING,
-    STATE_OTA,
-    STATE_WIPE_NVRAM,
-    STATE_MAX
-} ui_state_t;
-
 int64_t btn_pushdown_time = 0;
-ui_state_t ui_state = STATE_VARIO;
 bool delegate;
 
 QueueHandle_t task_user_input_queue;
@@ -72,16 +65,13 @@ void task_user_inputs(void *pvParameter)
                     xQueueSend(task_user_input_queue, &msg, 0);
                 }
                 else{
-                    ui_state = (ui_state + 1) % STATE_MAX;
-                    ESP_LOGI(TAG, "new state: %d", ui_state);
-                    switch (ui_state)
+                    switch_state((device_state + 1) % STATE_MAX);
+                    ESP_LOGI(TAG, "new state: %d", device_state);
+                    switch (device_state)
                     {
                     case STATE_VARIO:
                         set_led_rgb(5, 0, 0);
-                        tone(200, 100);
-                        vTaskDelete(tasks[TASK_OTA]);
-                        set_wifi(false);
-                        vTaskResume(tasks[TASK_VARIO]);
+                        ui_indicate_takeoff();
                         break;
 
                     case STATE_VARIO_WITH_UDP_LOGGING:
@@ -96,7 +86,7 @@ void task_user_inputs(void *pvParameter)
                         tone(200, 100);
                         vTaskSuspend(tasks[TASK_VARIO]);
                         esp_log_set_vprintf(vprintf);
-                        if(xTaskCreate(&task_ota, "task_ota", 8192, NULL, 0, &tasks[TASK_OTA]) != pdPASS){
+                        if(xTaskCreate(&task_ota, "task_ota", 8192, NULL, 6, &tasks[TASK_OTA]) != pdPASS){
                             ESP_LOGI(TAG, "Failed starting ota task, resetting...");
                             abort();
                         }
@@ -112,6 +102,7 @@ void task_user_inputs(void *pvParameter)
                         break;
 
                     default:
+                        ESP_LOGI(TAG, "UNREACHABLE");
                         break;
                     }
                 }

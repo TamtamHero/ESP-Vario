@@ -6,156 +6,116 @@
 
 #define TAG "vario_audio"
 
-// clamp climbrate/sinkrate for audio feedback to +/- 10 m/s
-#define VARIO_MAX_CPS         1000
+#define CONFIG Nvd.par.cfg.vario
 
 #define TICK_MS 40
 
-static int32_t CurrentCps; // internal state : current climb/sink rate
-static int32_t CurrentFreqHz; // internal state : current frequency being generated
-// sinktone indicates sinking air, this is a warning tone
-static int32_t SinkToneCps; // threshold in cm per second
-// climbtone indicates lift is strong enough to try turning to stay in it
-static int32_t ClimbToneCps; // threshold in cm per second
-// zeroestone indicates weak lift, possibility of stronger lift/thermal nearby
-static int32_t ZeroesToneCps; // threshold in cm per second
-// allocate roughly 1 decade (10:1) of speaker frequency bandwidth to climbrates below
-// crossoverCps, and 1 octave (2:1) of frequency bandwidth to climbrates above
-// crossoverCps. So if you are flying in strong conditions, increase crossoverCps.
-// If you are flying in weak conditions, decrease crossoverCps.
-static int32_t CrossoverCps;
+static int16_t Current_climb_rate; // internal state : current climb/sink rate
+static uint16_t Current_freq; // internal state : current frequency being generated
 
-static int Beepperiod; // internal state : current beep interval in ticks
-static int BeeponTime; // internal state : current beep  on-time in ticks
+static uint16_t Beep_window; // internal state : current beep interval in ticks
 static int Tick; // internal state : current tick ( 1 tick ~= 20mS)
+
 // for offscale climbrates above +10m/s generate continuous warbling tone
-static const int OffScaleHiTone[8]  = {400,800,1200,1600,2000,1600,1200,800};
+static const uint16_t OffScaleHiTone[8]  = {400,800,1200,1600,2000,1600,1200,800};
 // for offscale sinkrates below -10m/s generate continuous descending tone
-static const int OffScaleLoTone[8]  = {4000,3500,3000,2500,2000,1500,1000,500};
-// how long beep periods are when climbing, in Ticks (40ms), from 0-1m/s to 9-10m/s by step of 1m/s
-static const uint8_t ClimbBeepPeriod[10] = {16, 14, 12, 10, 8, 6, 6, 6, 4, 4};
+static const uint16_t OffScaleLoTone[8]  = {4000,3500,3000,2500,2000,1500,1000,500};
 
-void audio_set_frequency(int freqHz) {
-    if (freqHz > 0) {
-        tone(freqHz, BeeponTime*TICK_MS);
-    }
-    else {
-        noTone();
-    }
-}
+static float Freq_slopes[NUM_SOUND_PROFILE_POINTS-1];
+static float Freq_offsets[NUM_SOUND_PROFILE_POINTS-1];
+static float Length_slopes[NUM_SOUND_PROFILE_POINTS-1];
+static float Length_offsets[NUM_SOUND_PROFILE_POINTS-1];
 
-
-void vaudio_config() {
+void vaudio_init() {
     esp_log_level_set(TAG, ESP_LOG_DEBUG);
-    SinkToneCps    =  (int32_t)Nvd.par.cfg.vario.sinkThresholdCps;
-    ClimbToneCps   =  (int32_t)Nvd.par.cfg.vario.climbThresholdCps;
-    ZeroesToneCps  =  (int32_t)Nvd.par.cfg.vario.zeroThresholdCps;
-    CrossoverCps   =  (int32_t)Nvd.par.cfg.vario.crossoverCps;
-    ESP_LOGD(TAG, "climbToneCps = %ld\r\n", ClimbToneCps);
-    ESP_LOGD(TAG, "zeroesToneCps = %ld\r\n", ZeroesToneCps);
-    ESP_LOGD(TAG, "sinkToneCps = %ld\r\n", SinkToneCps);
-    ESP_LOGD(TAG, "crossoverCps = %ld\r\n", CrossoverCps);
-    Beepperiod	= 0;
-    BeeponTime 	= 0;
-    CurrentCps 		= 0;
-    CurrentFreqHz  	= 0;
-	Tick 			= 0;
+
+    // compute slopes and offsets from sound profile to faciliate future interpolation
+    sound_profile_point_t *points = CONFIG.points;
+    for (size_t i = 0; i < NUM_SOUND_PROFILE_POINTS-1; i++)
+    {
+        if(points[i].cps == points[i+1].cps){
+            Freq_slopes[i] = 0;
+            Length_slopes[i] = 0;
+        }
+        else{
+            Freq_slopes[i] = (float)(points[i+1].frequency - points[i].frequency)/(points[i+1].cps - points[i].cps);
+            Length_slopes[i] = (float)(points[i+1].length - points[i].length)/(points[i+1].cps - points[i].cps);
+        }
+        Freq_offsets[i] = Freq_slopes[i] == 0 ? (float)points[i].frequency : (float)points[i].frequency - (points[i].cps * Freq_slopes[i]);
+        Length_offsets[i] = Length_slopes[i] == 0 ? (float)points[i].length : (float)points[i].length - (points[i].cps * Length_slopes[i]);
+
+        ESP_LOGD(TAG, "%f %f %f %f", Freq_slopes[i], Freq_offsets[i], Length_slopes[i], Length_offsets[i]);
+    }
+
+    Beep_window	       = 0;
+    Current_climb_rate = 0;
+    Current_freq  	   = 0;
+	Tick 			   = 0;
 }
 
+static void play_interpolated_beep(int32_t cps){
+    sound_profile_point_t *points = CONFIG.points;
+    for (size_t i = 0; i < NUM_SOUND_PROFILE_POINTS-1; i++)
+    {
+        if(cps >= points[i].cps && cps <= points[i+1].cps){
+            if(points[i].duty == 0){
+                Current_freq = 0;
+                Beep_window = points[i].length/TICK_MS;
+                silence(points[i].length);
+                return;
+            }
+            Current_freq = (uint16_t)(Freq_slopes[i] * cps + Freq_offsets[i]);
+            Beep_window = (uint16_t)((Length_slopes[i] * cps + Length_offsets[i])/TICK_MS);
+			uint32_t beep_duration  = (uint32_t)(Beep_window*points[i].duty/100.0);
+            tone(Current_freq, beep_duration*TICK_MS);
+            return;
+        }
+    }
+    ESP_LOGE(TAG, "climb rate (%ld) is out of boundaries", cps);
+}
 
-static void vaudio_reset(int32_t nCps) {
-	CurrentCps = nCps;
+static void vaudio_reset(int32_t climb_rate) {
+	Current_climb_rate = climb_rate;
 	Tick = 0;
 	// if sinking significantly faster than glider sink rate in still air, generate warning sink tone
-	if (CurrentCps <= SinkToneCps) {
-		if (CurrentCps <= -VARIO_MAX_CPS) {
-			Beepperiod = 8;
-			BeeponTime = 8;
-			CurrentFreqHz = OffScaleLoTone[0];
-			audio_set_frequency(CurrentFreqHz);
-		}
-		else {
-			Beepperiod = 40; // sink indicated with descending frequency beeps with long on-times
-			BeeponTime  = 30;
-			// descending tone starts at higher frequency for higher sink rate
-			CurrentFreqHz = VARIO_SPKR_MAX_FREQHZ/2 + ((CurrentCps + VARIO_MAX_CPS)*(VARIO_SPKR_MIN_FREQHZ + 600 - VARIO_SPKR_MAX_FREQHZ/2))/(SinkToneCps + VARIO_MAX_CPS);
-			CLAMP(CurrentFreqHz, VARIO_SPKR_MIN_FREQHZ, VARIO_SPKR_MAX_FREQHZ);
-			audio_set_frequency(CurrentFreqHz);
-		}
+	if (Current_climb_rate <= CONFIG.offscale_low.cps) {
+        Beep_window = 12;
+        Current_freq = OffScaleLoTone[0];
+        tone(Current_freq, 12*TICK_MS);
 	}
-	//if climbing, generate beeps
-	else {
-		if (CurrentCps >= ClimbToneCps) {
-			if (CurrentCps >= VARIO_MAX_CPS) {
-				Beepperiod = 8;
-				BeeponTime = 8;
-				CurrentFreqHz = OffScaleHiTone[0];
-				audio_set_frequency(CurrentFreqHz);
-			}
-			else {
-				int index = CurrentCps/100;
-				if (index > 9) index = 9;
-				Beepperiod = ClimbBeepPeriod[index];
-				BeeponTime = ClimbBeepPeriod[index]/2;
-				if (CurrentCps > CrossoverCps) {
-					CurrentFreqHz = VARIO_CROSSOVER_FREQHZ + ((CurrentCps - CrossoverCps)*(VARIO_SPKR_MAX_FREQHZ - VARIO_CROSSOVER_FREQHZ))/(VARIO_MAX_CPS - CrossoverCps);
-					}
-				else {
-					CurrentFreqHz = VARIO_SPKR_MIN_FREQHZ + ((CurrentCps - ZeroesToneCps)*(VARIO_CROSSOVER_FREQHZ - VARIO_SPKR_MIN_FREQHZ))/(CrossoverCps - ZeroesToneCps);
-					}
-				CLAMP(CurrentFreqHz, VARIO_SPKR_MIN_FREQHZ, VARIO_SPKR_MAX_FREQHZ);
-				audio_set_frequency(CurrentFreqHz);
-			}
-		}
-		else if (CurrentCps >= ZeroesToneCps) {
-			// in "zeroes" band, indicate with a short pulse and long interval
-			Beepperiod = 30;
-			BeeponTime = 4;
-			CurrentFreqHz = VARIO_SPKR_MIN_FREQHZ + ((CurrentCps - ZeroesToneCps)*(VARIO_CROSSOVER_FREQHZ - VARIO_SPKR_MIN_FREQHZ))/(CrossoverCps - ZeroesToneCps);
-			CLAMP(CurrentFreqHz, VARIO_SPKR_MIN_FREQHZ, VARIO_SPKR_MAX_FREQHZ);
-			audio_set_frequency(CurrentFreqHz);
-		}
-		// between zeroes threshold and sink threshold, chillout
-		else {
-			Beepperiod = 0;
-			BeeponTime  = 0;
-			CurrentFreqHz = 0;
-			audio_set_frequency(CurrentFreqHz);
-		}
-	}
+    // if climbing really fast, generate warning sink tone
+	else if(Current_climb_rate >= CONFIG.offscale_high.cps){
+        Beep_window = 12;
+        Current_freq = OffScaleHiTone[0];
+        tone(Current_freq, 12*TICK_MS);
+    }
+    // regular climb rate, interpolate the sound profile to play the right beep
+    else{
+        play_interpolated_beep(climb_rate);
+    }
 }
 
-
-void vaudio_tick_handler(int32_t nCps) {
+// climb_rate in cm.s⁻¹
+void vaudio_tick_handler(int32_t climb_rate) {
     // generate new beep/tone only if current beep/tone has ended, OR climb threshold exceeded
-    if ((Beepperiod <= 0)  || ((nCps >= ClimbToneCps) && (CurrentCps < ClimbToneCps)) ) {
-		vaudio_reset(nCps);
-        }
+    if ((Beep_window <= 0)  || ((climb_rate >= CONFIG.climb_threshold.cps) && (Current_climb_rate <  CONFIG.climb_threshold.cps)) ) {
+		vaudio_reset(climb_rate);
+    }
     else { // still processing current beep/tone
-		int32_t newFreqHz;
+		uint16_t newFreqHz = Current_freq;
         Tick++;
-        Beepperiod--;
+        Beep_window--;
 
-        if (CurrentCps >= VARIO_MAX_CPS) { // offscale climbrate (>= +10m/s) indicated with continuous warbling tone
-            BeeponTime = 1;
+        if (Current_climb_rate >= CONFIG.offscale_high.cps) { // offscale climbrate (>= +10m/s) indicated with continuous warbling tone
             newFreqHz = OffScaleHiTone[Tick];
         }
-        else if (CurrentCps <= -VARIO_MAX_CPS) {  // offscale sink (<= -10m/s) indicated with continuous descending tone
-            BeeponTime = 1;
+        else if (Current_climb_rate <= CONFIG.offscale_low.cps) {  // offscale sink (<= -10m/s) indicated with continuous descending tone
             newFreqHz = OffScaleLoTone[Tick];
         }
-        else if (CurrentCps <= SinkToneCps) {  // sink is indicated with a descending frequency beep
-            ESP_LOGD(TAG, "sink %ld", nCps);
-            BeeponTime = 1;
-            newFreqHz = CurrentFreqHz - 20;
-        }
-        else {
-            newFreqHz = CurrentFreqHz; // no change
-        }
 
-        if (newFreqHz != CurrentFreqHz) {
-            CurrentFreqHz = newFreqHz;
-            audio_set_frequency(CurrentFreqHz);
-            }
+        if (newFreqHz != Current_freq) {
+            Current_freq = newFreqHz;
+            tone(Current_freq, TICK_MS);
         }
     }
+}
